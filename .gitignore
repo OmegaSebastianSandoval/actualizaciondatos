@@ -1,0 +1,4 @@
+node_modules/
+framework/
+app/config/config.php
+vendor/

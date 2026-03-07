@@ -1,0 +1,8 @@
+@import url(/components/Font-Awesome/css/all.min.css);
+@import url(../../page/fuentes/fuentes.css);
+*{
+	font-family: 'Cocogoose';
+	font-family: 'Myriad Pro';
+	font-weight: 200;
+	font-style: normal;
+}
