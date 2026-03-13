@@ -63,6 +63,7 @@ $desdeAdmin = ($metrics['desde_admin']) ? (int) $metrics['desde_admin'] : 0;
       ['key' => 'aprobados', 'title' => 'Aprobados', 'icon' => 'fas fa-check-circle'],
       ['key' => 'rechazados', 'title' => 'Rechazados', 'icon' => 'fas fa-times-circle'],
       ['key' => 'pendientes', 'title' => 'Pendientes', 'icon' => 'fas fa-hourglass-half'],
+      ['key' => 'total_fotos_subidas', 'title' => 'Fotos actualizadas', 'icon' => 'fas fa-images'],
     ];
     ?>
 
@@ -154,7 +155,7 @@ $desdeAdmin = ($metrics['desde_admin']) ? (int) $metrics['desde_admin'] : 0;
                           <?= $row->estado_label; ?>
                         </span>
                       </td>
-                      <td><?= $row->fecha_ingreso ? date('d/m/Y', strtotime($row->fecha_ingreso)) : '-'; ?></td>
+                      <td><?= $row->fecha_ingreso  ?></td>
                     </tr>
                   <?php endforeach; ?>
                   <?php if (empty($last10)): ?>

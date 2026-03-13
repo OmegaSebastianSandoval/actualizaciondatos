@@ -6,6 +6,8 @@ class Administracion_reporteController extends Administracion_mainController
 
 	public function indexAction()
 	{
+		ini_set('memory_limit', '512M');
+
 		$solicitudesModel = new Administracion_Model_DbTable_Solicitudes();
 		$db = App::getDbConnection();
 		$rawList = $solicitudesModel->getList();
@@ -23,6 +25,7 @@ class Administracion_reporteController extends Administracion_mainController
 			// origen: pública vs administrador
 			'desde_publica' => 0,
 			'desde_admin' => 0,
+			'total_fotos_subidas' => 0,
 		];
 		$approvedUserIds = [];
 		$creatorBySolicitud = [];
@@ -68,6 +71,37 @@ class Administracion_reporteController extends Administracion_mainController
 				$approvedAt = strtotime($item->solicitud_fecha_aprobacion);
 				if ($createdAt !== false && $approvedAt !== false && $approvedAt >= $createdAt) {
 					$metrics['times_to_approval'][] = ($approvedAt - $createdAt);
+				}
+			}
+
+			if ($item->solicitud_foto != $item->solicitud_foto_actual) {
+				$metrics['total_fotos_subidas1']++;
+
+				$actual = $item->solicitud_foto_actual;
+
+				if (preg_match('/^[0-9a-fA-F]+$/', $actual) && strlen($actual) % 2 == 0) {
+					$actual = hex2bin($actual);
+				} else {
+					$decoded = base64_decode($actual, true);
+					if ($decoded !== false) {
+						$actual = $decoded;
+					}
+				}
+
+				$nueva = $item->solicitud_foto;
+				$decodedNueva = base64_decode($nueva, true);
+				if ($decodedNueva !== false) {
+					$nueva = $decodedNueva;
+				}
+
+				if ($nueva !== $actual) {
+					$metrics['total_fotos_subidas']++;
+					if ($_GET['test'] == 1) {
+						print_r([
+							'solicitud_id' => $item->solicitud_id,
+						]);
+						echo '<br>';
+					}
 				}
 			}
 		}
