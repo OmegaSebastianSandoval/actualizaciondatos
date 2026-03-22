@@ -749,7 +749,13 @@
             <div class="field-group field-full mb-2">
               <label class="w-100" for="solicitud_foto">Foto</label>
               <div class="alert-warning p-3 mt-1 mb-2">
-                <strong>Nota:</strong> La foto debe ser en formato JPG o PNG y no debe superar los 4MB.
+                <strong>Nota:</strong>
+                <ul style="margin:8px 0 0 1.2rem; padding-left: 1rem;">
+                  <li>La foto debe ser en formato JPG o PNG y no debe superar los 4MB.</li>
+                  <li>La foto debe tener fondo blanco.</li>
+                  <li>La foto debe ser nítida y legible (rostro visible y sin obstrucciones).</li>
+                  <li>Si la foto no cumple estos requisitos, no se podrá procesar la actualización de datos.</li>
+                </ul>
               </div>
               <input class="file-image" type="file" name="solicitud_foto" id="solicitud_foto" disabled
                 accept="image/jpeg, image/png">

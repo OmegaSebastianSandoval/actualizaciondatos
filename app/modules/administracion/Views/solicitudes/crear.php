@@ -10,12 +10,186 @@
       flex: 0 0 100%;
     }
   </style>
+  <style>
+    .meta-container {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      padding: 15px;
+      background: #f8f9fa;
+      border-radius: 12px;
+      border: 1px solid #e9ecef;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.02);
+    }
+
+    .meta-progress-wrapper {
+      position: relative;
+      width: 300px;
+      cursor: pointer;
+      margin: 0 15px;
+    }
+
+    .meta-label {
+      font-size: 14px;
+      font-weight: 700;
+      color: #202124;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .progress-custom {
+      height: 18px;
+      background-color: #e8eaed;
+      border-radius: 9px;
+      overflow: hidden;
+      box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.1);
+      border: 1px solid #dadce0;
+    }
+
+    .progress-bar-custom {
+      height: 100%;
+      background: linear-gradient(90deg, #3498db, #2ecc71);
+      transition: width 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .meta-tooltip {
+      visibility: hidden;
+      position: absolute;
+      bottom: 140%;
+      left: 50%;
+      transform: translateX(-50%);
+      background-color: #202124;
+      color: #fff;
+      text-align: center;
+      padding: 10px 15px;
+      border-radius: 8px;
+      z-index: 100;
+      opacity: 0;
+      transition: all 0.3s;
+      width: 220px;
+      font-size: 13px;
+      box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+    }
+
+    .meta-tooltip::after {
+      content: "";
+      position: absolute;
+      top: 100%;
+      left: 50%;
+      margin-left: -6px;
+      border-width: 6px;
+      border-style: solid;
+      border-color: #202124 transparent transparent transparent;
+    }
+
+    .meta-progress-wrapper:hover .meta-tooltip {
+      visibility: visible;
+      opacity: 1;
+      bottom: 155%;
+    }
+
+    .meta-stats {
+      font-weight: 800;
+      color: #fff;
+    }
+
+    .meta-numbers {
+      font-size: 15px;
+      font-weight: 700;
+      color: #1a73e8;
+      background: #e8f0fe;
+      padding: 4px 12px;
+      border-radius: 20px;
+      min-width: 85px;
+      text-align: center;
+    }
+
+    .meta-percentage-tag {
+      font-size: 12px;
+      font-weight: 700;
+      color: #fff;
+      background: rgba(0, 0, 0, 0.1);
+      padding: 0 8px;
+      border-radius: 10px;
+      line-height: 16px;
+    }
+
+    .header-top-container {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+      position: sticky;
+      top: 0;
+      background: white;
+      z-index: 1000;
+      padding: 10px 15px;
+      border-bottom: 2px solid #e8eaed;
+
+    }
+
+    .header-top-container .meta-container {
+      margin-bottom: 0;
+    }
+
+    .header-top-container .titulo-principal {
+      margin-bottom: 0 !important;
+    }
+  </style>
 <?php endif; ?>
+
+
+<div class="header-top-container">
+  <h1 class="titulo-principal"><i class="fas fa-cogs"></i> <?php echo $this->titlesection; ?></h1>
+  <?php if ($_SESSION['kt_login_level'] == 14): ?>
+
+    <a href="<?php echo $this->route; ?>/fotocarnet?limpiar=1" class="btn btn-info me-2">
+      <i class="fas fa-camera"></i> Solo actualizar foto
+    </a>
+
+    <div class="meta-container">
+      <?php
+      $porcentaje = ($this->meta > 0) ? min(100, round(($this->solicitudesHoyUsuario / $this->meta) * 100)) : 0;
+      $faltantes = max(0, $this->meta - $this->solicitudesHoyUsuario);
+      $barColor = $porcentaje >= 100 ? '#2ecc71' : ($porcentaje >= 75 ? '#3498db' : '#f39c12');
+      ?>
+      <span class="meta-label"> Meta</span>
+
+      <div class="meta-progress-wrapper">
+        <div class="progress-custom">
+          <div class="progress-bar-custom" style="width: <?= $porcentaje ?>%; background: <?= $barColor ?>;">
+            <?php if ($porcentaje > 15): ?>
+              <span class="meta-percentage-tag"><?= $porcentaje ?>%</span>
+            <?php endif; ?>
+          </div>
+        </div>
+        <div class="meta-tooltip">
+          <div class="mb-1">Progreso Actual: <span class="meta-stats"><?= $porcentaje ?>%</span></div>
+          <div>Solicitudes: <span class="meta-stats"><?= $this->solicitudesHoyUsuario ?> de <?= $this->meta ?></span>
+          </div>
+          <hr style="margin: 8px 0; border-top: 1px solid rgba(255,255,255,0.1);">
+          <?php if ($faltantes > 0): ?>
+            <div class="text-info">Te faltan <strong><?= $faltantes ?></strong> para el objetivo.</div>
+          <?php else: ?>
+            <div class="text-success"><i class="fas fa-star"></i> Meta alcanzada.</div>
+          <?php endif; ?>
+        </div>
+      </div>
+
+      <div class="meta-numbers">
+        <span class="text-dark"><?= $this->solicitudesHoyUsuario ?></span> / <?= $this->meta ?>
+      </div>
+    </div>
+  <?php endif; ?>
+
+</div>
 <!-- SELECT 2 -->
 <link href="/components/select2/dist/css/select2.min.css" rel="stylesheet" />
 <script src="/components/select2/dist/js/select2.min.js"></script>
 
-<h1 class="titulo-principal"><i class="fas fa-cogs"></i> <?php echo $this->titlesection; ?></h1>
 <div class="container-fluid">
 
   <?php if ($this->error) { ?>
@@ -206,22 +380,8 @@
           </div>
 
           <?php
-          // Intentar obtener la foto del socio
-          $base64String = $this->datos_socio->socio_foto ?? '';
-          if ($base64String) {
-
-            // Decodificar temporalmente para detectar el tipo MIME
-            $imageData = base64_decode($base64String);
-            $imageInfo = getimagesizefromstring($imageData);
-
-            if ($imageInfo !== false) {
-              $mimeType = $imageInfo['mime']; // Obtiene el tipo MIME, por ejemplo, "image/png" o "image/jpeg"
-            } else {
-              $mimeType = 'image/png'; // Valor predeterminado si falla la detección
-            }
-            // Codificar con el prefijo MIME adecuado
-            $fotoActual = "data:$mimeType;base64," . $base64String;
-
+          $fotoActual = generateBase64Image($this->datos_socio->socio_foto ?? '');
+          if ($fotoActual) {
             ?>
             <div class="col-12 form-group">
               <label class="control-label">Foto actual</label>
@@ -252,7 +412,7 @@
 
               <span class="input-group-text input-icono"><i class="fas fa-user"></i></span>
               <input type="text" class="form-control" name="solicitud_nombre" id="solicitud_nombre"
-                value="<?= $this->datos_socio->sbe_nomb ?? '' ?>" required>
+                value="<?= $this->datos_socio->sbe_nomb ?? '' ?>" required readonly>
             </label>
           </div>
 
@@ -262,7 +422,7 @@
 
               <span class="input-group-text input-icono"><i class="fas fa-user"></i></span>
               <input type="text" class="form-control" name="solicitud_apellidos" id="solicitud_apellidos"
-                value="<?= $this->datos_socio->sbe_apel ?? '' ?>" required>
+                value="<?= $this->datos_socio->sbe_apel ?? '' ?>" required >
             </label>
           </div>
 
@@ -409,6 +569,9 @@
 </div>
 
 <style>
+  input[readonly] {
+    background-color: #ebebeb !important;
+  }
   /* Estilos para el formulario de búsqueda - Minimalista */
   .search-socio-container {
     padding: 50px 20px;
@@ -782,14 +945,36 @@ function generateBase64Image(?string $base64String, string $defaultMimeType = 'i
     return null;
   }
 
-  // Decodifica temporalmente la cadena base64 para detectar el tipo MIME
-  $imageData = base64_decode($base64String);
+  $foto = trim($base64String);
+
+  // Si viene como data URL, extrae solo el payload base64
+  if (strpos($foto, 'data:image') === 0) {
+    $partes = explode(',', $foto, 2);
+    $foto = isset($partes[1]) ? $partes[1] : '';
+  }
+
+  $foto = preg_replace('/\s+/', '', $foto);
+
+  // Si viene hexadecimal (ejemplo: ffd8ffe0...), convertir a base64.
+  if ($foto !== '' && ctype_xdigit($foto) && strlen($foto) % 2 === 0) {
+    $binario = @hex2bin($foto);
+    if ($binario !== false) {
+      $foto = base64_encode($binario);
+    }
+  }
+
+  // Decodifica temporalmente la cadena normalizada para detectar el tipo MIME
+  $imageData = base64_decode($foto, true);
+  if ($imageData === false) {
+    return null;
+  }
+
   $imageInfo = getimagesizefromstring($imageData);
 
   // Detecta el tipo MIME o usa el valor predeterminado
   $mimeType = $imageInfo !== false ? $imageInfo['mime'] : $defaultMimeType;
 
   // Vuelve a codificar en base64 con el prefijo MIME adecuado
-  return "data:$mimeType;base64," . $base64String;
+  return "data:$mimeType;base64," . $foto;
 }
 ?>

@@ -8,9 +8,91 @@ class Administracion_reporteController extends Administracion_mainController
 	{
 		ini_set('memory_limit', '512M');
 
-		$solicitudesModel = new Administracion_Model_DbTable_Solicitudes();
 		$db = App::getDbConnection();
-		$rawList = $solicitudesModel->getList();
+
+		$fecha_inicio = $this->_getSanitizedParam('fecha_inicio');
+		$fecha_fin = $this->_getSanitizedParam('fecha_fin');
+		$usuario_id = (int) $this->_getSanitizedParam('usuario');
+		$isExportXls = isset($_GET['export']) && $_GET['export'] === 'xls';
+		$isTest = isset($_GET['test']) && (int) $_GET['test'] === 1;
+
+		if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', (string) $fecha_inicio)) {
+			$fecha_inicio = '';
+		}
+		if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', (string) $fecha_fin)) {
+			$fecha_fin = '';
+		}
+
+		$filters = ["1 = 1"];
+		if ($fecha_inicio) {
+			$filters[] = "solicitud_fecha_ingreso >= '$fecha_inicio 00:00:00'";
+		}
+		if ($fecha_fin) {
+			$filters[] = "solicitud_fecha_ingreso <= '$fecha_fin 23:59:59'";
+		}
+
+		$where = implode(' AND ', $filters);
+		$whereS = str_replace('solicitud_', 's.solicitud_', $where);
+
+		// Evita SELECT * para reducir IO/memoria cuando la tabla tiene campos grandes.
+		$selectColumns = "
+			s.solicitud_id,
+			s.solicitud_numero_accion,
+			s.solicitud_nombre,
+			s.solicitud_apellidos,
+			s.solicitud_documento,
+			s.solicitud_telefono,
+			s.solicitud_email_facturacion,
+			s.solicitud_direccion,
+			s.solicitud_ciudad,
+			s.solicitud_fecha_ingreso,
+			s.solicitud_fecha_solicitud,
+			s.solicitud_fecha_aprobacion,
+			s.solicitud_estado,
+			s.solicitud_acepta_politicas,
+			s.solicitud_ip,
+			s.solicitud_user_agent,
+			s.solicitud_observaciones,
+			s.solicitud_source,
+			s.solicitud_usuario,
+			s.solicitud_solicitado_por,
+			s.solicitud_foto,
+			s.solicitud_foto_actual
+		";
+
+		if ($usuario_id > 0) {
+			$sqlRawList = "
+				SELECT * FROM (
+					SELECT $selectColumns
+					FROM solicitudes s
+					WHERE $whereS AND s.solicitud_usuario = $usuario_id
+
+					UNION
+
+					SELECT $selectColumns
+					FROM solicitudes s
+					WHERE $whereS AND s.solicitud_solicitado_por = $usuario_id
+
+					UNION
+
+					SELECT $selectColumns
+					FROM solicitudes s
+					INNER JOIN log_solicitudes l
+						ON l.log_solicitud_solicitud = s.solicitud_id
+						AND l.log_solicitud_usuario = $usuario_id
+					WHERE $whereS
+				) t
+				ORDER BY t.solicitud_id DESC
+			";
+		} else {
+			$sqlRawList = "
+				SELECT $selectColumns
+				FROM solicitudes s
+				WHERE $whereS
+				ORDER BY s.solicitud_id DESC
+			";
+		}
+		$rawList = $db->query($sqlRawList)->fetchAsObject();
 
 		$reportRows = [];
 		$metrics = [
@@ -22,11 +104,13 @@ class Administracion_reporteController extends Administracion_mainController
 			'times_to_approval' => [],
 			'aprobados_por_usuario' => [],
 			'creadas_por_usuario' => [],
+			'usuarios_filtro' => [],
 			// origen: pública vs administrador
 			'desde_publica' => 0,
 			'desde_admin' => 0,
 			'total_fotos_subidas' => 0,
 		];
+
 		$approvedUserIds = [];
 		$creatorBySolicitud = [];
 		$missingCreatorSolicitudIds = [];
@@ -74,13 +158,14 @@ class Administracion_reporteController extends Administracion_mainController
 				}
 			}
 
-			if ($item->solicitud_foto != $item->solicitud_foto_actual) {
-				$metrics['total_fotos_subidas1']++;
-
-				$actual = $item->solicitud_foto_actual;
+			if ((string) $item->solicitud_foto !== (string) $item->solicitud_foto_actual) {
+				$actual = (string) $item->solicitud_foto_actual;
 
 				if (preg_match('/^[0-9a-fA-F]+$/', $actual) && strlen($actual) % 2 == 0) {
-					$actual = hex2bin($actual);
+					$actualDecoded = hex2bin($actual);
+					if ($actualDecoded !== false) {
+						$actual = $actualDecoded;
+					}
 				} else {
 					$decoded = base64_decode($actual, true);
 					if ($decoded !== false) {
@@ -88,7 +173,7 @@ class Administracion_reporteController extends Administracion_mainController
 					}
 				}
 
-				$nueva = $item->solicitud_foto;
+				$nueva = (string) $item->solicitud_foto;
 				$decodedNueva = base64_decode($nueva, true);
 				if ($decodedNueva !== false) {
 					$nueva = $decodedNueva;
@@ -96,7 +181,7 @@ class Administracion_reporteController extends Administracion_mainController
 
 				if ($nueva !== $actual) {
 					$metrics['total_fotos_subidas']++;
-					if ($_GET['test'] == 1) {
+					if ($isTest) {
 						print_r([
 							'solicitud_id' => $item->solicitud_id,
 						]);
@@ -104,6 +189,7 @@ class Administracion_reporteController extends Administracion_mainController
 					}
 				}
 			}
+
 		}
 
 		if (!empty($missingCreatorSolicitudIds)) {
@@ -169,6 +255,30 @@ class Administracion_reporteController extends Administracion_mainController
 			}
 		}
 
+		// Obtener todos los usuarios que han aprobado o solicitado para el select del filtro
+		$sqlActiveUsers = "
+			SELECT u.user_id, u.user_names
+			FROM user u
+			INNER JOIN (
+				SELECT solicitud_usuario AS user_id
+				FROM solicitudes
+				WHERE solicitud_usuario > 0
+				UNION
+				SELECT solicitud_solicitado_por AS user_id
+				FROM solicitudes
+				WHERE solicitud_solicitado_por > 0
+				UNION
+				SELECT log_solicitud_usuario AS user_id
+				FROM log_solicitudes
+				WHERE log_solicitud_usuario > 0
+			) active_users ON active_users.user_id = u.user_id
+			ORDER BY u.user_names ASC
+		";
+		$activeUsers = $db->query($sqlActiveUsers)->fetchAsObject();
+		foreach ($activeUsers as $user) {
+			$metrics['usuarios_filtro'][$user->user_id] = mb_strtoupper((string) $user->user_names, 'UTF-8');
+		}
+
 		foreach ($rawList as $item) {
 			$estado = (int) $item->solicitud_estado;
 			$source = isset($item->solicitud_source) ? (string) $item->solicitud_source : '';
@@ -177,11 +287,14 @@ class Administracion_reporteController extends Administracion_mainController
 			if ($estado === 2) {
 				$usuarioId = isset($item->solicitud_usuario) ? (int) $item->solicitud_usuario : 0;
 				if ($usuarioId > 0) {
-					$userName = isset($userNameCache[$usuarioId]) ? $userNameCache[$usuarioId] : ('Usuario #' . $usuarioId);
-					if (!isset($metrics['aprobados_por_usuario'][$userName])) {
-						$metrics['aprobados_por_usuario'][$userName] = 0;
+					// Si hay un filtro por usuario, solo sumamos si el usuario coincide
+					if ($usuario_id === 0 || $usuario_id === $usuarioId) {
+						$userName = isset($userNameCache[$usuarioId]) ? $userNameCache[$usuarioId] : ('Usuario #' . $usuarioId);
+						if (!isset($metrics['aprobados_por_usuario'][$userName])) {
+							$metrics['aprobados_por_usuario'][$userName] = 0;
+						}
+						$metrics['aprobados_por_usuario'][$userName]++;
 					}
-					$metrics['aprobados_por_usuario'][$userName]++;
 				}
 			}
 
@@ -189,11 +302,14 @@ class Administracion_reporteController extends Administracion_mainController
 				$sid = (int) $item->solicitud_id;
 				$creatorId = isset($creatorBySolicitud[$sid]) ? (int) $creatorBySolicitud[$sid] : 0;
 				if ($creatorId > 0) {
-					$userName = isset($userNameCache[$creatorId]) ? $userNameCache[$creatorId] : ('Usuario #' . $creatorId);
-					if (!isset($metrics['creadas_por_usuario'][$userName])) {
-						$metrics['creadas_por_usuario'][$userName] = 0;
+					// Si hay un filtro por usuario, solo sumamos si el usuario coincide
+					if ($usuario_id === 0 || $usuario_id === $creatorId) {
+						$userName = isset($userNameCache[$creatorId]) ? $userNameCache[$creatorId] : ('Usuario #' . $creatorId);
+						if (!isset($metrics['creadas_por_usuario'][$userName])) {
+							$metrics['creadas_por_usuario'][$userName] = 0;
+						}
+						$metrics['creadas_por_usuario'][$userName]++;
 					}
-					$metrics['creadas_por_usuario'][$userName]++;
 				}
 			}
 
@@ -248,7 +364,7 @@ class Administracion_reporteController extends Administracion_mainController
 		];
 
 		// Soporta export XLS por query param: ?export=xls
-		if (isset($_GET['export']) && $_GET['export'] === 'xls') {
+		if ($isExportXls) {
 			$this->_exportXls($reportRows);
 			exit;
 		}

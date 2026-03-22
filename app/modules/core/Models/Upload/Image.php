@@ -54,7 +54,6 @@ class Core_Model_Upload_Image
 
     $filename = $this->clearName(pathinfo($_FILES[$image]['name'], PATHINFO_FILENAME));
     $name = $filename . '.' . $extension;
-    list($ancho_orig, $alto_orig) = getimagesize($_FILES[$image]['tmp_name']);
     $ruta = IMAGE_PATH . $name;
 
     // Evitar sobrescribir archivos
@@ -68,6 +67,7 @@ class Core_Model_Upload_Image
     $origen = $_FILES[$image]['tmp_name'];
     $ancho_max = $this->_width;
     $alto_max = $this->_height;
+    list($ancho_orig, $alto_orig) = getimagesize($origen);
 
     // Si resize es true, forzar redimensionamiento con crop centrado para mantener proporciones
     if ($resize || $ancho_orig > $ancho_max || $alto_orig > $alto_max) {
@@ -98,7 +98,25 @@ class Core_Model_Upload_Image
         switch ($fileType) {
           case "image/jpg":
           case "image/jpeg":
-            $imageRes = imagecreatefromjpeg($origen);
+            $imageRes = $this->createImageFromJpegWithOrientation($origen);
+            $ancho_orig = imagesx($imageRes);
+            $alto_orig = imagesy($imageRes);
+
+            $ratio_orig = $ancho_orig / $alto_orig;
+            $ratio_dest = $ancho_max / $alto_max;
+
+            if ($ratio_orig > $ratio_dest) {
+              $ancho_temp = $alto_orig * $ratio_dest;
+              $alto_temp = $alto_orig;
+              $src_x = ($ancho_orig - $ancho_temp) / 2;
+              $src_y = 0;
+            } else {
+              $ancho_temp = $ancho_orig;
+              $alto_temp = $ancho_orig / $ratio_dest;
+              $src_x = 0;
+              $src_y = ($alto_orig - $alto_temp) / 2;
+            }
+
             imagecopyresampled($canvas, $imageRes, 0, 0, $src_x, $src_y, $ancho_max, $alto_max, $ancho_temp, $alto_temp);
             imagejpeg($canvas, $ruta, 95);
             break;
@@ -141,7 +159,20 @@ class Core_Model_Upload_Image
         switch ($fileType) {
           case "image/jpg":
           case "image/jpeg":
-            $imageRes = imagecreatefromjpeg($origen);
+            $imageRes = $this->createImageFromJpegWithOrientation($origen);
+            $ancho_orig = imagesx($imageRes);
+            $alto_orig = imagesy($imageRes);
+
+            $ratio_orig = $ancho_orig / $alto_orig;
+            if ($ancho_max / $alto_max > $ratio_orig) {
+              $ancho_max = $alto_max * $ratio_orig;
+            } else {
+              $alto_max = $ancho_max / $ratio_orig;
+            }
+
+            imagedestroy($canvas);
+            $canvas = imagecreatetruecolor($ancho_max, $alto_max);
+
             imagecopyresampled($canvas, $imageRes, 0, 0, 0, 0, $ancho_max, $alto_max, $ancho_orig, $alto_orig);
             imagejpeg($canvas, $ruta, 100);
             break;
@@ -164,6 +195,47 @@ class Core_Model_Upload_Image
     }
 
     return $name;
+  }
+
+  private function createImageFromJpegWithOrientation($path)
+  {
+    $imageRes = imagecreatefromjpeg($path);
+    if (!$imageRes) {
+      return $imageRes;
+    }
+
+    if (!function_exists('exif_read_data')) {
+      return $imageRes;
+    }
+
+    $exif = @exif_read_data($path);
+    $orientation = isset($exif['Orientation']) ? (int) $exif['Orientation'] : 1;
+
+    switch ($orientation) {
+      case 3:
+        $rotated = imagerotate($imageRes, 180, 0);
+        if ($rotated) {
+          imagedestroy($imageRes);
+          $imageRes = $rotated;
+        }
+        break;
+      case 6:
+        $rotated = imagerotate($imageRes, -90, 0);
+        if ($rotated) {
+          imagedestroy($imageRes);
+          $imageRes = $rotated;
+        }
+        break;
+      case 8:
+        $rotated = imagerotate($imageRes, 90, 0);
+        if ($rotated) {
+          imagedestroy($imageRes);
+          $imageRes = $rotated;
+        }
+        break;
+    }
+
+    return $imageRes;
   }
 
   public function delete($image)
@@ -245,7 +317,6 @@ class Core_Model_Upload_Image
 
     $filename = $this->clearName(pathinfo($_FILES[$image]['name'], PATHINFO_FILENAME));
     $name = $filename . '.' . $extension;
-    list($ancho_orig, $alto_orig) = getimagesize($_FILES[$image]['tmp_name']);
     $ruta = IMAGE_PATH . 'thumbs/' . $name;
 
     $increment = 0;
@@ -258,6 +329,7 @@ class Core_Model_Upload_Image
     $origen = $_FILES[$image]['tmp_name'];
     $ancho_max = $this->_width;
     $alto_max = $this->_height;
+    list($ancho_orig, $alto_orig) = getimagesize($origen);
 
     if ($ancho_orig > $ancho_max || $alto_orig > $alto_max) {
       $ratio_orig = $ancho_orig / $alto_orig;
@@ -271,7 +343,20 @@ class Core_Model_Upload_Image
       switch ($fileType) {
         case "image/jpg":
         case "image/jpeg":
-          $imageRes = imagecreatefromjpeg($origen);
+          $imageRes = $this->createImageFromJpegWithOrientation($origen);
+          $ancho_orig = imagesx($imageRes);
+          $alto_orig = imagesy($imageRes);
+
+          $ratio_orig = $ancho_orig / $alto_orig;
+          if ($ancho_max / $alto_max > $ratio_orig) {
+            $ancho_max = $alto_max * $ratio_orig;
+          } else {
+            $alto_max = $ancho_max / $ratio_orig;
+          }
+
+          imagedestroy($canvas);
+          $canvas = imagecreatetruecolor($ancho_max, $alto_max);
+
           imagecopyresampled($canvas, $imageRes, 0, 0, 0, 0, $ancho_max, $alto_max, $ancho_orig, $alto_orig);
           imagejpeg($canvas, $ruta, 100);
           break;
@@ -286,6 +371,8 @@ class Core_Model_Upload_Image
           imagepng($canvas, $ruta, 0);
           break;
       }
+      imagedestroy($imageRes);
+      imagedestroy($canvas);
     } else {
       move_uploaded_file($origen, $ruta);
     }

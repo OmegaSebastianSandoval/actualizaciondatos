@@ -396,6 +396,7 @@ footer.panel-derechos a {
     background: #ebf0f6;
     min-height: calc(100vh - 110px);
     padding: 0px;
+    padding-bottom: 45px;
 }
 
 .panel-titulo {

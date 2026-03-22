@@ -63,6 +63,7 @@ class Administracion_solicitudesController extends Administracion_mainController
 		} else {
 			$this->pages = 20;
 		}
+		ini_set('memory_limit', '512M');
 		parent::init();
 	}
 
@@ -166,8 +167,8 @@ class Administracion_solicitudesController extends Administracion_mainController
 			Session::getInstance()->set("ciudades", $ciudades);
 		}
 		/* echo "<pre>";
-									print_r($ciudades);
-									echo "</pre>"; */
+														print_r($ciudades);
+														echo "</pre>"; */
 		//eliminar vacias
 		$ciudadesFiltradas = array_filter($ciudades, function ($ciudad) {
 			return $ciudad->dep_codi >= 1
@@ -189,8 +190,8 @@ class Administracion_solicitudesController extends Administracion_mainController
 
 
 		/* echo "<pre>";
-										print_r($ciudadesArray[54][553]);
-										echo "</pre>"; */
+															print_r($ciudadesArray[54][553]);
+															echo "</pre>"; */
 
 		// Ahora $ciudadesFiltradas contiene solo las ciudades que cumplen las condiciones.
 
@@ -237,8 +238,8 @@ class Administracion_solicitudesController extends Administracion_mainController
 			Session::getInstance()->set("ciudades", $ciudades);
 		}
 		/* echo "<pre>";
-									print_r($ciudades);
-									echo "</pre>"; */
+														print_r($ciudades);
+														echo "</pre>"; */
 		//eliminar vacias
 		$ciudadesFiltradas = array_filter($ciudades, function ($ciudad) {
 			return $ciudad->dep_codi >= 1
@@ -260,8 +261,8 @@ class Administracion_solicitudesController extends Administracion_mainController
 
 
 		/* echo "<pre>";
-										print_r($ciudadesArray[54][553]);
-										echo "</pre>"; */
+															print_r($ciudadesArray[54][553]);
+															echo "</pre>"; */
 
 		// Ahora $ciudadesFiltradas contiene solo las ciudades que cumplen las condiciones.
 
@@ -491,6 +492,276 @@ class Administracion_solicitudesController extends Administracion_mainController
 			header('Location: ' . $this->route . '/crear');
 			exit;
 		}
+
+
+		$solicitudesModel = new Administracion_Model_DbTable_Solicitudes();
+		$usuarioId = Session::getInstance()->get("kt_login_id");
+		$meta = 30;
+		$fechaInicio = date("Y-m-d 00:00:00");
+		$fechaFin = date("Y-m-d 23:59:59");
+
+		$solicitudesHoyUsuario = $solicitudesModel->getList("solicitud_solicitado_por = '{$usuarioId}'  AND (solicitud_fecha_solicitud >= '{$fechaInicio}' AND solicitud_fecha_solicitud <= '{$fechaFin}')");
+		$this->_view->meta = $meta;
+		$this->_view->solicitudesHoyUsuario = count($solicitudesHoyUsuario);
+
+	}
+
+	public function fotocarnetAction()
+	{
+		if ($_SESSION['kt_login_level'] == 10) {
+			header('Location: ' . $this->route);
+			exit;
+		}
+
+		$title = "Actualizar foto de carnet";
+		$this->getLayout()->setTitle($title);
+		$this->_view->titlesection = $title;
+		$this->_view->route = $this->route;
+		$this->_csrf_section = "fotocarnet_solicitudes_" . date("YmdHis");
+		$this->_csrf->generateCode($this->_csrf_section);
+		$this->_view->csrf_section = $this->_csrf_section;
+		$this->_view->csrf = Session::getInstance()->get('csrf')[$this->_csrf_section];
+
+		$this->_view->datos_socio = Session::getInstance()->get("datos_socio_foto");
+		$this->_view->error = Session::getInstance()->get("error_foto");
+		$this->_view->tipo_error = Session::getInstance()->get("tipo_error_foto");
+
+		Session::getInstance()->set("error_foto", "");
+		Session::getInstance()->set("tipo_error_foto", "");
+
+		if ($this->_getSanitizedParam("limpiar") == 1) {
+			Session::getInstance()->set("datos_socio_foto", null);
+			Session::getInstance()->set("error_foto", "");
+			Session::getInstance()->set("tipo_error_foto", "");
+			header('Location: ' . $this->route . '/fotocarnet');
+			exit;
+		}
+	}
+
+	public function buscar_socio_fotoAction()
+	{
+		$this->setLayout('blanco');
+		$csrf = $this->_getSanitizedParam("csrf");
+
+		if (Session::getInstance()->get('csrf')[$this->_getSanitizedParam("csrf_section")] == $csrf) {
+			$numero_carnet = trim((string) $this->_getSanitizedParam("numero_carnet"));
+
+			if (!$numero_carnet) {
+				Session::getInstance()->set("error_foto", "Debe ingresar un número de carnet.");
+				Session::getInstance()->set("tipo_error_foto", "danger");
+				header('Location: ' . $this->route . '/fotocarnet');
+				exit;
+			}
+
+			$datos_socio = $this->consultar_Socio($numero_carnet);
+
+			if (!$datos_socio || (is_array($datos_socio) && count($datos_socio) == 0) || $datos_socio->mensaje === 'No encontrado') {
+				Session::getInstance()->set("error_foto", "No se encontró ningún socio con el número de carnet: " . $numero_carnet);
+				Session::getInstance()->set("tipo_error_foto", "warning");
+				Session::getInstance()->set("datos_socio_foto", null);
+				header('Location: ' . $this->route . '/fotocarnet');
+				exit;
+			}
+
+			if (is_array($datos_socio)) {
+				$datos_socio = $datos_socio[0];
+			}
+
+			$datos_socio = $this->prepararDatosSocioSesion($datos_socio, $numero_carnet);
+
+			Session::getInstance()->set("datos_socio_foto", $datos_socio);
+			Session::getInstance()->set("error_foto", "");
+			Session::getInstance()->set("tipo_error_foto", "");
+		}
+
+		header('Location: ' . $this->route . '/fotocarnet');
+	}
+
+	public function guardar_fotoAction()
+	{
+		ini_set('post_max_size', '50M');
+		$this->setLayout('blanco');
+		$csrf = $this->_getSanitizedParam("csrf");
+
+		if (Session::getInstance()->get('csrf')[$this->_getSanitizedParam("csrf_section")] != $csrf) {
+			header('Location: ' . $this->route . '/fotocarnet');
+			exit;
+		}
+
+		$datos_socio = Session::getInstance()->get("datos_socio_foto");
+		if (!$datos_socio) {
+			Session::getInstance()->set("error_foto", "No se encontraron datos del socio. Realice la búsqueda nuevamente.");
+			Session::getInstance()->set("tipo_error_foto", "danger");
+			header('Location: ' . $this->route . '/fotocarnet');
+			exit;
+		}
+
+		if (!isset($_FILES['solicitud_foto_file']) || $_FILES['solicitud_foto_file']['size'] <= 0) {
+			Session::getInstance()->set("error_foto", "Debe seleccionar una imagen para actualizar la foto.");
+			Session::getInstance()->set("tipo_error_foto", "warning");
+			header('Location: ' . $this->route . '/fotocarnet');
+			exit;
+		}
+
+		$finfo = finfo_open(FILEINFO_MIME_TYPE);
+		$mimeType = finfo_file($finfo, $_FILES['solicitud_foto_file']['tmp_name']);
+		finfo_close($finfo);
+
+		$allowedTypes = ['image/jpeg', 'image/png', 'image/jpg'];
+		if (!in_array($mimeType, $allowedTypes)) {
+			Session::getInstance()->set("error_foto", "Tipo de archivo no permitido. Solo se aceptan imágenes JPG y PNG.");
+			Session::getInstance()->set("tipo_error_foto", "danger");
+			header('Location: ' . $this->route . '/fotocarnet');
+			exit;
+		}
+
+		if ($_FILES['solicitud_foto_file']['size'] > 5242880) {
+			Session::getInstance()->set("error_foto", "El archivo es demasiado grande (máximo 5MB).");
+			Session::getInstance()->set("tipo_error_foto", "danger");
+			header('Location: ' . $this->route . '/fotocarnet');
+			exit;
+		}
+
+		$uploadImage = new Core_Model_Upload_Image();
+		$rutaImagen = IMAGE_PATH . $uploadImage->upload('solicitud_foto_file', true);
+		$datosImagen = file_get_contents($rutaImagen);
+		$fotoNueva = base64_encode($datosImagen);
+		$fotoActual = $this->normalizarFotoBase64($this->obtenerValorSocio($datos_socio, ['socio_foto', 'SOC_FOTO'], ''));
+
+		if (!$fotoNueva) {
+			Session::getInstance()->set("error_foto", "No fue posible procesar la imagen seleccionada.");
+			Session::getInstance()->set("tipo_error_foto", "danger");
+			header('Location: ' . $this->route . '/fotocarnet');
+			exit;
+		}
+
+		$dataWs = [
+			'solicitud_sbe_codi' => $this->obtenerValorSocio($datos_socio, ['SBE_CODI', 'sbe_codi']),
+			'solicitud_numero_accion' => $this->obtenerValorSocio($datos_socio, ['numero_carnet', 'SBE_NCAR', 'sbe_ncar']),
+			'solicitud_soc_cont' => $this->obtenerValorSocio($datos_socio, ['SOC_CONT', 'soc_cont']),
+			'solicitud_mac_nume' => $this->obtenerValorSocio($datos_socio, ['MAC_NUME', 'mac_nume']),
+			'solicitud_soc_codi' => $this->obtenerValorSocio($datos_socio, ['SOC_CODI', 'soc_codi']),
+			'solicitud_pais' => $this->obtenerValorSocio($datos_socio, ['PAI_CODI', 'pai_codi']),
+			'solicitud_departamento' => $this->obtenerValorSocio($datos_socio, ['DEP_CODI', 'dep_codi']),
+			'solicitud_ciudad' => $this->obtenerValorSocio($datos_socio, ['MUN_CODI', 'mun_codi']),
+			'solicitud_region' => $this->obtenerValorSocio($datos_socio, ['REG_CODI', 'reg_codi']),
+			'solicitud_nombre' => $this->obtenerValorSocio($datos_socio, ['sbe_nomb', 'SBE_NOMB']),
+			'solicitud_apellidos' => $this->obtenerValorSocio($datos_socio, ['sbe_apel', 'SBE_APEL']),
+			'solicitud_email_comunicacion' => $this->obtenerValorSocio($datos_socio, ['sbe_mail', 'SBE_MAIL']),
+			'solicitud_telefono' => $this->obtenerValorSocio($datos_socio, ['sbe_ncel', 'SBE_NCEL']),
+			'solicitud_direccion' => $this->obtenerValorSocio($datos_socio, ['sbe_dire', 'SBE_DIRE']),
+			'solicitud_email_facturacion' => $this->obtenerValorSocio($datos_socio, ['con_mail', 'SBE_MAIL_FACT']),
+			'solicitud_foto' => $fotoNueva,
+		];
+
+		$response = $this->updateUser($dataWs);
+
+		$res = json_decode($response);
+
+		if (!$res || !isset($res->status) || $res->status != 'success') {
+			Session::getInstance()->set("error_foto", "Error al actualizar la foto en el sistema externo.");
+			Session::getInstance()->set("tipo_error_foto", "danger");
+			header('Location: ' . $this->route . '/fotocarnet');
+			exit;
+		}
+
+		$ahora = date("Y-m-d H:i:s");
+		$ip = $_SERVER['REMOTE_ADDR'];
+		$userAgent = $_SERVER['HTTP_USER_AGENT'];
+
+		$dataSolicitud = [
+			'solicitud_numero_accion' => $dataWs['solicitud_numero_accion'],
+			'solicitud_nombre' => $dataWs['solicitud_nombre'],
+			'solicitud_apellidos' => $dataWs['solicitud_apellidos'],
+			'solicitud_documento' => $dataWs['solicitud_sbe_codi'],
+			'solicitud_telefono' => $dataWs['solicitud_telefono'],
+			'solicitud_direccion' => $dataWs['solicitud_direccion'],
+			'solicitud_ciudad' => $dataWs['solicitud_ciudad'],
+			'solicitud_email_facturacion' => $dataWs['solicitud_email_facturacion'],
+			'solicitud_email_comunicacion' => $dataWs['solicitud_email_comunicacion'],
+			'solicitud_foto' => $fotoNueva,
+			'solicitud_observaciones' => 'Actualización de foto de carnet (sin aprobación).',
+			'solicitud_numero_accion_actual' => $dataWs['solicitud_numero_accion'],
+			'solicitud_nombre_actual' => $dataWs['solicitud_nombre'],
+			'solicitud_apellidos_actual' => $dataWs['solicitud_apellidos'],
+			'solicitud_documento_actual' => $dataWs['solicitud_sbe_codi'],
+			'solicitud_telefono_actual' => $dataWs['solicitud_telefono'],
+			'solicitud_direccion_actual' => $dataWs['solicitud_direccion'],
+			'solicitud_ciudad_actual' => $dataWs['solicitud_ciudad'],
+			'solicitud_email_facturacion_actual' => $dataWs['solicitud_email_facturacion'],
+			'solicitud_email_comunicacion_actual' => $dataWs['solicitud_email_comunicacion'],
+			'solicitud_foto_actual' => $fotoActual,
+			'solicitud_observaciones_actual' => 'Foto anterior',
+			'solicitud_fecha_ingreso' => $ahora,
+			'solicitud_fecha_solicitud' => $ahora,
+			'solicitud_acepta_politicas' => 0,
+			'solicitud_estado' => 2,
+			'solicitud_ip' => $ip,
+			'solicitud_user_agent' => $userAgent,
+			'solicitud_usuario' => Session::getInstance()->get("kt_login_id"),
+			'solicitud_usuario_ip' => $ip,
+			'solicitud_usuario_user_agent' => $userAgent,
+			'solicitud_source' => 'solo_foto',
+			'solicitud_declara_titular' => 0,
+		];
+		$modelSolicitudImagenes = new Administracion_Model_DbTable_Solicitudesimagenes();
+		$id = $modelSolicitudImagenes->insert($dataSolicitud);
+		$modelSolicitudImagenes->editField($id, 'solicitud_solicitado_por', Session::getInstance()->get("kt_login_id"));
+		$modelSolicitudImagenes->editField($id, 'solicitud_response', print_r($res, JSON_PRETTY_PRINT));
+		$modelSolicitudImagenes->editField($id, 'solicitud_fecha_aprobacion', $ahora);
+
+		$extraFields = [
+			"solicitud_departamento" => $dataWs['solicitud_departamento'],
+			"solicitud_pais" => $dataWs['solicitud_pais'],
+			"solicitud_region" => $dataWs['solicitud_region'],
+			"solicitud_departamento_actual" => $dataWs['solicitud_departamento'],
+			"solicitud_pais_actual" => $dataWs['solicitud_pais'],
+			"solicitud_region_actual" => $dataWs['solicitud_region'],
+			"solicitud_sbe_codi" => $dataWs['solicitud_sbe_codi'],
+			"solicitud_sbe_cont" => $this->obtenerValorSocio($datos_socio, ['SBE_CONT', 'sbe_cont']),
+			"solicitud_soc_codi" => $dataWs['solicitud_soc_codi'],
+			"solicitud_soc_cont" => $dataWs['solicitud_soc_cont'],
+			"solicitud_mac_nume" => $dataWs['solicitud_mac_nume'],
+			"solicitud_ncon" => $this->obtenerValorSocio($datos_socio, ['SBE_NCON', 'sbe_ncon']),
+			"solicitud_sbe_idio" => $this->obtenerValorSocio($datos_socio, ['SBE_IDIO', 'sbe_idio']),
+		];
+		$modelSolicitudImagenes->updateExtraFields($id, $extraFields);
+
+		$logSolicitudimagenesModel = new Administracion_Model_DbTable_Logsolicitudesimagenes();
+		$fotoActualHash = $fotoActual ? hash('sha256', $fotoActual) : '';
+		$fotoNuevaHash = hash('sha256', $fotoNueva);
+
+		$logData = [
+			'log_solicitud_solicitud' => $id,
+			'log_solicitud_cliente' => $dataWs['solicitud_numero_accion'],
+			'log_solicitud_fecha_datos_anteriores' => $ahora,
+			'log_solicitud_fecha_datos_nuevos' => $ahora,
+			'log_solicitud_ip_cliente' => $ip,
+			'log_solicitud_user_agent_cliente' => $userAgent,
+			'log_solicitud_usuario' => Session::getInstance()->get("kt_login_id"),
+			'log_solicitud_ip_usuario' => $ip,
+			'log_solicitud_user_agent_usuario' => $userAgent,
+			'log_solicitud_datos_completos' => print_r([
+				'tipo_operacion' => 'solo_foto',
+				'solicitud_source' => 'solo_foto',
+				'numero_accion' => $dataWs['solicitud_numero_accion'],
+				'foto_actual_hash' => $fotoActualHash,
+				'foto_nueva_hash' => $fotoNuevaHash,
+				'foto_actual_length' => strlen((string) $fotoActual),
+				'foto_nueva_length' => strlen((string) $fotoNueva),
+			], true),
+			'log_solicitud_datos_nuevos' => print_r([
+				'tipo_operacion' => 'solo_foto',
+				'status_webservice' => $res->status,
+			], true),
+		];
+		$logSolicitudimagenesModel->insert($logData);
+
+		Session::getInstance()->set("datos_socio_foto", null);
+		Session::getInstance()->set("error_foto", "La foto fue actualizada correctamente sin proceso de aprobación.");
+		Session::getInstance()->set("tipo_error_foto", "success");
+		header('Location: ' . $this->route . '/fotocarnet');
+		exit;
 	}
 
 	public function buscar_socioAction()
@@ -542,16 +813,8 @@ class Administracion_solicitudesController extends Administracion_mainController
 
 			// Agregar el número de carnet al objeto ya que no viene en la respuesta
 			$datos_socio->numero_carnet = $numero_carnet;
-
-			if ($datos_socio->SOC_FOTO) {
-				$binary = hex2bin($datos_socio->SOC_FOTO);
-				// Paso 2: Codificar en Base64
-				$base64 = base64_encode($binary);
-				$socio_foto = $base64;
-			} else {
-				$socio_foto = "";
-			}
-			$datos_socio->socio_foto = $socio_foto;
+			$fotoRaw = $this->obtenerValorSocio($datos_socio, ['SOC_FOTO', 'socio_foto'], '');
+			$datos_socio->socio_foto = $this->normalizarFotoBase64($fotoRaw);
 
 			// Guardar datos en sesión
 			Session::getInstance()->set("datos_socio_crear", $datos_socio);
@@ -826,7 +1089,6 @@ class Administracion_solicitudesController extends Administracion_mainController
 		curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
 		curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
 
-
 		$response = curl_exec($ch);
 
 		if (curl_errno($ch)) {
@@ -835,8 +1097,6 @@ class Administracion_solicitudesController extends Administracion_mainController
 		}
 
 		curl_close($ch);
-
-
 		return $response;
 	}
 
@@ -1014,8 +1274,8 @@ class Administracion_solicitudesController extends Administracion_mainController
 
 		curl_close($ch);
 		/* echo "<pre>";
-											print_r($response);
-											echo "</pre>"; */
+																print_r($response);
+																echo "</pre>"; */
 		// return $response;
 
 		return PRUEBAS ? "naxquJ6KkSJU5F8w2qq3W08NJBe6vQDc" : $response->token;
@@ -1124,6 +1384,52 @@ class Administracion_solicitudesController extends Administracion_mainController
 		return $response;
 	}
 
+	private function prepararDatosSocioSesion($datos_socio, $numero_carnet)
+	{
+		$datos_socio->numero_carnet = $numero_carnet;
+		$fotoRaw = $this->obtenerValorSocio($datos_socio, ['SOC_FOTO', 'socio_foto'], '');
+		$datos_socio->socio_foto = $this->normalizarFotoBase64($fotoRaw);
+		return $datos_socio;
+	}
+
+	private function obtenerValorSocio($socio, $keys, $default = '')
+	{
+		foreach ($keys as $key) {
+			if (is_object($socio) && isset($socio->{$key}) && $socio->{$key} !== null && $socio->{$key} !== '') {
+				return trim((string) $socio->{$key});
+			}
+			if (is_array($socio) && isset($socio[$key]) && $socio[$key] !== null && $socio[$key] !== '') {
+				return trim((string) $socio[$key]);
+			}
+		}
+		return $default;
+	}
+
+	private function normalizarFotoBase64($valor)
+	{
+		if (empty($valor)) {
+			return '';
+		}
+
+		$foto = trim((string) $valor);
+
+		if (strpos($foto, 'data:image') === 0) {
+			$partes = explode(',', $foto, 2);
+			$foto = isset($partes[1]) ? $partes[1] : '';
+		}
+
+		$foto = preg_replace('/\s+/', '', $foto);
+
+		if ($foto !== '' && ctype_xdigit($foto) && strlen($foto) % 2 === 0) {
+			$binario = @hex2bin($foto);
+			if ($binario !== false) {
+				return base64_encode($binario);
+			}
+		}
+
+		return $foto;
+	}
+
 	public function testAction()
 	{
 		ini_set('display_errors', 1);
@@ -1219,10 +1525,7 @@ class Administracion_solicitudesController extends Administracion_mainController
 
 				// Verificar que se guard consultndolo
 				$logGuardado = $logSolicitudModel->getById($idLog);
-				echo "<h4>Log guardado en BD:</h4>";
-				echo "<pre>";
-				print_r($logGuardado);
-				echo "</pre>";
+				
 			} else {
 				echo "<p style='color: red;'><strong>✗ ERROR: No se pudo insertar el log (retornó false/0)</strong></p>";
 			}

@@ -181,9 +181,14 @@
 				<div class="col-3">
 					<?php if ($_SESSION['kt_login_level'] != 10 && $_SESSION['kt_login_level'] != 15): ?>
 
-						<div class="text-end"><a class="btn btn-sm btn-success"
-								href="<?php echo $this->route . "\crear?limpiar=1"; ?>"> <i class="fas fa-plus-square"></i> Actualizar
-								socio </a></div>
+						<div class="text-end d-flex justify-content-end" style="gap:6px;">
+							<a class="btn btn-sm btn-info" href="<?php echo $this->route . "/fotocarnet?limpiar=1"; ?>">
+								<i class="fas fa-camera"></i> Actualizar foto
+							</a>
+							<a class="btn btn-sm btn-success" href="<?php echo $this->route . "\crear?limpiar=1"; ?>"> <i
+									class="fas fa-plus-square"></i> Actualizar
+								socio </a>
+						</div>
 					<?php endif; ?>
 				</div>
 			</div>
@@ -508,9 +513,11 @@
 		padding: 5px;
 		font-size: 0.7rem;
 	}
-.content-table .table tbody td{
-	font-size: 0.7rem;
-}
+
+	.content-table .table tbody td {
+		font-size: 0.7rem;
+	}
+
 	table img {
 		max-width: 70px;
 		/* width: 100%; */

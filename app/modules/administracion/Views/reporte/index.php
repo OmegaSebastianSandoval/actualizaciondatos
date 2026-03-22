@@ -51,9 +51,54 @@ $desdeAdmin = ($metrics['desde_admin']) ? (int) $metrics['desde_admin'] : 0;
   <span>
     <i class="fas fa-cogs"></i> Reporte de Solicitudes
   </span>
-  <a class="btn btn-sm btn-success" href="?export=xls">Exportar XLS</a>
+  <a class="btn btn-sm btn-success"
+    href="?export=xls<?= $_GET['fecha_inicio'] ? '&fecha_inicio=' . $_GET['fecha_inicio'] : '' ?><?= $_GET['fecha_fin'] ? '&fecha_fin=' . $_GET['fecha_fin'] : '' ?><?= $_GET['usuario'] ? '&usuario=' . $_GET['usuario'] : '' ?>">Exportar
+    XLS</a>
 </h1>
 <div class="container-fluid mt-4">
+  <div class="card card-filters shadow-sm border-0 mb-4 bg-light">
+    <div class="card-body p-3">
+      <form action="" method="GET">
+        <div class="row g-2 align-items-end">
+          <div class="col-md-3">
+            <label for="fecha_inicio" class="form-label fw-bold small text-uppercase mb-1">
+              <i class="fas fa-calendar-alt me-1"></i> Fecha Inicio
+            </label>
+            <input type="date" name="fecha_inicio" id="fecha_inicio"
+              class="form-control form-control-sm border-0 shadow-sm" value="<?= $_GET['fecha_inicio']; ?>">
+          </div>
+          <div class="col-md-3">
+            <label for="fecha_fin" class="form-label fw-bold small text-uppercase mb-1">
+              <i class="fas fa-calendar-check me-1"></i> Fecha Fin
+            </label>
+            <input type="date" name="fecha_fin" id="fecha_fin" class="form-control form-control-sm border-0 shadow-sm"
+              value="<?= $_GET['fecha_fin']; ?>">
+          </div>
+          <div class="col-md-4">
+            <label for="usuario" class="form-label fw-bold small text-uppercase mb-1">
+              <i class="fas fa-user-check me-1"></i> Usuario (Aprobador/Creador)
+            </label>
+            <select name="usuario" id="usuario" class="form-select form-select-sm border-0 shadow-sm">
+              <option value="">TODOS LOS USUARIOS CON ACTIVIDAD</option>
+              <?php foreach ($metrics['usuarios_filtro'] as $uid => $uname): ?>
+                <option value="<?= $uid; ?>" <?= ($_GET['usuario'] == $uid) ? 'selected' : ''; ?>><?= $uname; ?></option>
+              <?php endforeach; ?>
+            </select>
+          </div>
+          <div class="col-md-2 d-flex gap-1">
+            <button type="submit" class="btn btn-sm btn-success flex-grow-1 shadow-sm">
+              <i class="fas fa-filter me-1"></i> Filtrar
+            </button>
+            <a href="/administracion/reporte" class="btn btn-sm btn-outline-secondary shadow-sm"
+              title="Limpiar filtros">
+              <i class="fas fa-redo-alt"></i>
+            </a>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <!--  <a class="btn btn-outline-secondary" href="?export=csv">Exportar CSV</a> -->
   <!-- Metrics (KPI cards) -->
   <div class="cards kpi-cards">
@@ -155,7 +200,7 @@ $desdeAdmin = ($metrics['desde_admin']) ? (int) $metrics['desde_admin'] : 0;
                           <?= $row->estado_label; ?>
                         </span>
                       </td>
-                      <td><?= $row->fecha_ingreso  ?></td>
+                      <td><?= $row->fecha_ingreso ?></td>
                     </tr>
                   <?php endforeach; ?>
                   <?php if (empty($last10)): ?>
@@ -426,6 +471,9 @@ $desdeAdmin = ($metrics['desde_admin']) ? (int) $metrics['desde_admin'] : 0;
 </script>
 
 <style>
+  .card-filters label{
+    color: rgba(0, 0, 0, 0.55);
+  }
   .card-title-metrics {
     font-size: 0.875rem;
     font-weight: 600;
@@ -598,6 +646,10 @@ $desdeAdmin = ($metrics['desde_admin']) ? (int) $metrics['desde_admin'] : 0;
     border-radius: 12px;
     transition: transform 0.18s ease, box-shadow 0.18s ease;
     overflow: hidden;
+  }
+
+  .card-filters {
+    min-height: auto;
   }
 
   .card:hover {
